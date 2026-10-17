@@ -2,23 +2,59 @@ import os
 import pickle
 import streamlit as st
 from PIL import Image
+from urllib.parse import quote
 
 # Load models
 movies = pickle.load(open('artifacts/movie_list.pkl', 'rb'))
 similarity = pickle.load(open('artifacts/similarity.pkl', 'rb'))
 
 # Function to fetch poster path safely
+
+
+
+import os
+import requests
+from urllib.parse import quote
+
+
 def fetch_poster(movie_title):
-    safe_title = movie_title.translate(str.maketrans('', '', r'\/:*?"<>|')).strip()
-    filename = f"{safe_title}.jpg"
-    path = os.path.join("posters", filename)
+    import os
+    import requests
+    from urllib.parse import quote
 
-    #st.write(f"Looking for image: {filename}")  # ✅ Add this
+    safe_title = movie_title.translate(
+        str.maketrans('', '', r'\/:*?"<>|')
+    ).strip()
 
-    if os.path.exists(path):
-        return path
-    else:
-        return os.path.join("posters", "default.jpg")
+    local_path = os.path.join("posters", f"{safe_title}.jpg")
+
+    if os.path.exists(local_path):
+        return local_path
+
+    url = (
+        "https://en.wikipedia.org/api/rest_v1/page/summary/"
+        + quote(movie_title.replace(" ", "_"))
+    )
+
+    try:
+        response = requests.get(
+            url,
+            headers={"User-Agent": "MovieRecommender/1.0"},
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            image_url = data.get("thumbnail", {}).get("source")
+
+            if image_url:
+                return image_url
+
+    except requests.RequestException:
+        pass
+
+    return None
+
 
 
 
@@ -51,5 +87,14 @@ if st.button('Show Recommendations'):
     for col, name, poster in zip(cols, names, posters):
         with col:
             st.markdown(f"**{name}**")
-            img = Image.open(poster)
-            st.image(img, use_container_width=True)  # ✅ Final syntax
+            if poster is not None:
+                if poster.startswith("http"):
+                    st.image(poster, use_container_width=True)
+                else:
+                    img = Image.open(poster)
+                    st.image(img, use_container_width=True)
+            else:
+                st.image("posters/default.jpg", use_container_width=True)
+                st.caption("Poster unavailable")
+
+            
